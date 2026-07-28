@@ -1,0 +1,43 @@
+_min_copier_version: "9.1"
+_subdirectory: template
+_answers_file: .sandcastle/.copier-answers.yml
+
+_skip_if_exists:
+  # Seed-once: appear on first copy, consumer-owned thereafter.
+  - .sandcastle/standards/**
+  - .sandcastle/pnpm-lock.yaml
+  - docs/agents/sandbox-rules.md
+
+# Belt-and-braces against local dirty-tree copies; git-URL installs clone clean.
+_exclude:
+  - "*/.env"
+  - "*/logs"
+  - "*/worktrees"
+  - "*/node_modules"
+  - "*/tmp"
+  - ".DS_Store"
+
+_tasks:
+  # Scaffold .env once, never on update, never over an existing file.
+  - command: "test -f .sandcastle/.env || cp .sandcastle/.env.example .sandcastle/.env"
+    when: "{{ _copier_operation == 'copy' }}"
+  # The dependency install is part of the one command. On update, run
+  # `pnpm -C .sandcastle install` yourself when package.json changed.
+  - command: "pnpm -C .sandcastle install"
+    when: "{{ _copier_operation == 'copy' }}"
+  # Verify + warn, never fail: the runtime prompts hard-gate these anyway.
+  - command: >
+      sh -c 'for f in docs/agents/issue-tracker.md docs/agents/triage-labels.md;
+      do test -f "$f" ||
+      echo "WARNING: $f is missing — the implement loop reads it at runtime. See README, Preconditions.";
+      done; exit 0'
+    when: "{{ _copier_operation == 'copy' }}"
+
+_message_after_copy: |
+  Sandcastle installed into .sandcastle/.
+
+  Preconditions this template does not ship (see README, Preconditions):
+    - docs/agents/issue-tracker.md and docs/agents/triage-labels.md
+    - triage labels on your tracker: ready-for-agent, ready-for-human, in-review
+    - the slash-skills the prompts invoke: /code-review /tdd /writing-commit
+      /simplify /explainer-html /resolving-merge-conflicts
