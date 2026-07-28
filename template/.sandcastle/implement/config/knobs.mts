@@ -43,7 +43,7 @@ export const RUN_TICKET_MAKER_CHECKER_MAX_CYCLES = 5;
 /** The strict checks a candidate branch must pass before it lands on the tip,
  *  as argv arrays. Empty means folds land unverified — the loop warns loudly
  *  at startup when so. */
-export const FOLD_WAVE_VERIFY_CHECKS: string[][] = [];
+export const FOLD_WAVE_VERIFY_CHECKS: string[][] = [["true"]];
 
 /** The same checks as one shell line, rendered into prompts as
  *  `{{VERIFY_COMMAND}}` so agents run exactly what the fold will. */
