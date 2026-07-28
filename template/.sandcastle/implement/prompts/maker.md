@@ -37,3 +37,5 @@ MAKER NOTES
 On the ticket, you can only comment and never edit the description.
 
 End with `<promise>COMPLETE</promise>`.
+
+Do not push branches; the harness owns all pushes.
