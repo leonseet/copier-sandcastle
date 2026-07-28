@@ -46,7 +46,7 @@ Not shipped; the loop expects the consuming repo to provide:
 One-way: consumers pull, tuning stays local thanks to copier's 3-way merge.
 
 ```sh
-uvx copier update --trust --vcs-ref=HEAD
+uvx copier update --trust --vcs-ref=HEAD -a .sandcastle/.copier-answers.yml
 ```
 
 Conflicts appear as inline markers; resolve and commit. If the update changed
