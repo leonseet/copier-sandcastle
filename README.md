@@ -39,6 +39,9 @@ Not shipped; the loop expects the consuming repo to provide:
 - The slash-skills the prompts invoke, installed in the consuming repo:
   `/code-review`, `/tdd`, `/writing-commit`, `/simplify`, `/explainer-html`,
   `/resolving-merge-conflicts`.
+- Node.js 22.x on the host — older Nodes bundle a corepack whose npm registry
+  keys have rotated out, so the `pnpm -C .sandcastle install` task fails with
+  `Cannot find matching keyid`.
 - `pnpm` and `uv`/`uvx` on the host; Docker for sandboxes.
 
 ## Updates
