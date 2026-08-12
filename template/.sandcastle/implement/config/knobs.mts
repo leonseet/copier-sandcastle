@@ -8,8 +8,9 @@ export const CODING_AGENT_MAX_ITERATIONS = 5;
 export const SANDBOX_IDLE_TIMEOUT_SECONDS = 600;
 export const STRUCTURED_OUTPUT_MAX_RETRIES = 2;
 
-/** Files copied from the main checkout into every ticket worktree — local,
- *  uncommitted configuration the repo's build needs (e.g. a backend `.env`).
+/** Files or directories copied from the main checkout into every ticket
+ *  worktree — local, uncommitted configuration the repo's build needs
+ *  (e.g. a backend `.env`, an untracked `data/` directory).
  *  Every listed path must exist: a missing one fails the run at startup. */
 export const COPY_TO_WORKTREE: string[] = [];
 
@@ -40,16 +41,17 @@ export const RUN_TICKET_MAKER_CHECKER_MAX_CYCLES = 5;
 
 // --- foldWave ---------------------------------------------------------------
 
-/** The strict checks a candidate branch must pass before it lands on the tip,
- *  as argv arrays. Empty means folds land unverified — the loop warns loudly
- *  at startup when so. */
-export const FOLD_WAVE_VERIFY_CHECKS: string[][] = [];
+/** The full verification suite a candidate branch must pass before it lands
+ *  on the tip, as one shell line (e.g. `"make test"`). Rendered into prompts
+ *  as `{{VERIFY_SLOW}}` and re-run by the fold, so agents run exactly what the
+ *  fold will. Empty means folds land unverified — the loop warns loudly at
+ *  startup when so. */
+export const VERIFY_SLOW_COMMAND = "";
 
-/** The same checks as one shell line, rendered into prompts as
- *  `{{VERIFY_COMMAND}}` so agents run exactly what the fold will. */
-export const VERIFY_COMMAND =
-  FOLD_WAVE_VERIFY_CHECKS.map((check) => check.join(" ")).join(" && ") ||
-  "(no verify checks configured)";
+/** A quicker subset for inner-loop iteration (e.g. `"make test-unit"`),
+ *  rendered into prompts as `{{VERIFY_FAST}}`. Defaults to the slow command
+ *  when the repo has no faster subset. */
+export const VERIFY_FAST_COMMAND = VERIFY_SLOW_COMMAND;
 
 // --- publish ----------------------------------------------------------------
 

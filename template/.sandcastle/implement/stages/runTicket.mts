@@ -11,7 +11,8 @@ import {
   RUN_TICKET_MAKER_CHECKER_MAX_CYCLES,
   WAVE_MAX_PARALLEL_TICKETS,
   COPY_TO_WORKTREE,
-  VERIFY_COMMAND,
+  VERIFY_FAST_COMMAND,
+  VERIFY_SLOW_COMMAND,
 } from "../config/knobs.mts";
 import { parseTagged } from "../../helpers/agentOutput.mts";
 import { git, isDirty } from "../../helpers/git.mts";
@@ -150,11 +151,19 @@ export async function runTicketsInParallel(
     readonly parallelism: number;
     readonly maxCycles: number;
     readonly boundary: TicketBoundary;
+    readonly onCompleted?: (branch: CompletedBranch) => void;
   },
 ): Promise<readonly (CompletedBranch | null)[]> {
   return mapBounded(plan.issues, options.parallelism, async (issue) => {
     try {
-      return await runTicket(issue, tip, options.maxCycles, options.boundary);
+      const done = await runTicket(
+        issue,
+        tip,
+        options.maxCycles,
+        options.boundary,
+      );
+      if (done !== null) options.onCompleted?.(done);
+      return done;
     } catch {
       // A failed halt reporter is still isolated to this ticket. The sibling
       // workers and the planner-ordered fold must remain usable.
@@ -167,6 +176,7 @@ export async function runPlannedTickets(
   plan: WavePlan,
   tip: RunTip,
   context: ImplementContext,
+  onCompleted?: (branch: CompletedBranch) => void,
 ): Promise<readonly (CompletedBranch | null)[]> {
   const boundary: TicketBoundary = {
     acquire: async (issue, runTip) => {
@@ -202,7 +212,8 @@ export async function runPlannedTickets(
           BRANCH: issueBranch(input.issue),
           RUN_TIP: input.tip.branch,
           CYCLE: input.cycle,
-          VERIFY_COMMAND,
+          VERIFY_SLOW: VERIFY_SLOW_COMMAND,
+          VERIFY_FAST: VERIFY_FAST_COMMAND,
         },
       });
     },
@@ -219,7 +230,7 @@ export async function runPlannedTickets(
           BRANCH: issueBranch(input.issue),
           RUN_TIP: input.tip.branch,
           COMMIT: input.commit,
-          VERIFY_COMMAND,
+          VERIFY_SLOW: VERIFY_SLOW_COMMAND,
         },
       });
       const verdict = parseTagged(result.stdout, "review", schema);
@@ -247,5 +258,6 @@ export async function runPlannedTickets(
     parallelism: WAVE_MAX_PARALLEL_TICKETS,
     maxCycles: RUN_TICKET_MAKER_CHECKER_MAX_CYCLES,
     boundary,
+    ...(onCompleted ? { onCompleted } : {}),
   });
 }

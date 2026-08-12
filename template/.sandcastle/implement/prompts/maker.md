@@ -4,11 +4,11 @@
 
 !`cat docs/agents/sandbox-rules.md`
 
-Implement issue #{{TASK_ID}} on `{{BRANCH}}`, based on `{{RUN_TIP}}`. Read the full thread; newer comments win. Use `/tdd`, treating the acceptance criteria as the agreed seams, and `/writing-commit`.
+Implement issue #{{TASK_ID}} on `{{BRANCH}}`, based on `{{RUN_TIP}}`. Read the full thread; newer comments win. Also read the parent issue and any ADR or spec the thread cites. Use `/tdd`, treating the acceptance criteria as the agreed seams, and `/writing-commit`.
 
-This is maker pass {{CYCLE}}. On pass 1, create exactly one non-empty ticket commit. On later passes, amend that same commit to address the findings in the most recent `CHECKER FAIL` comment on the thread — stage the edits first (`git add <files> && git commit --amend --no-edit`).
+This is maker pass {{CYCLE}}. On pass 1, create exactly one non-empty ticket commit. On later passes, amend that same commit to address the findings in the most recent `CHECKER FAIL` comment on the thread — stage the edits first (`git add <files> && git commit --amend --no-edit`). Criteria already ticked `[x]` in the description are settled, no need to re-run or rebuild their evidence.
 
-Before every commit or amend, run `{{VERIFY_COMMAND}}`. It must pass.
+While iterating, verify with `{{VERIFY_FAST}}`. Before the final commit or amend of a pass, run the full `{{VERIFY_SLOW}}` once — it must pass.
 
 Leave a clean worktree exactly one commit ahead of the run-tip base. Never change labels or close the issue.
 

@@ -80,6 +80,35 @@ export const codingProviderOptions: DockerOptions = {
 /** One project-owned provider. Sandcastle adds `.sandcastle/.env` itself. */
 const codingProvider = docker(codingProviderOptions);
 
+function httpsRemoteSetup(
+  hostExpr: string,
+  username: string,
+  passwordExpr: string,
+): string {
+  const helper = `'!f() { echo "username=${username}"; echo "password=${passwordExpr}"; }; f'`;
+  return (
+    `git config --global "credential.https://${hostExpr}.helper" ${helper} && ` +
+    `git config --global "url.https://${hostExpr}/.insteadOf" "git@${hostExpr}:"`
+  );
+}
+
+const gitHttpsHooks = [
+  {
+    command:
+      'if [ -n "$GITLAB_HOST" ]; then ' +
+      httpsRemoteSetup("$GITLAB_HOST", "oauth2", "$GITLAB_TOKEN") +
+      "; fi && " +
+      'if [ -n "${GH_TOKEN:-$GITHUB_TOKEN}" ]; then ' +
+      'gh_host="${GH_HOST:-github.com}" && ' +
+      httpsRemoteSetup(
+        "$gh_host",
+        "x-access-token",
+        "${GH_TOKEN:-$GITHUB_TOKEN}",
+      ) +
+      "; fi",
+  },
+];
+
 /** Codex rewrites `auth.json` on refresh, so the read-only mount is copied, not
  *  used in place. Claude needs nothing here; it reads the injected `.env`.
  *  Skipped entirely on hosts without a Codex login (the mount is absent too). */
@@ -102,12 +131,16 @@ export function setupHook(command: string) {
 
 /** Hooks run once, before the long-lived sandbox is used. */
 const authHooks: sandcastle.SandboxHooks = {
-  sandbox: { onSandboxReady: codexAuthHooks },
+  sandbox: { onSandboxReady: [...gitHttpsHooks, ...codexAuthHooks] },
 };
 
 const codingHooks: sandcastle.SandboxHooks = {
   sandbox: {
-    onSandboxReady: [...codexAuthHooks, ...SANDBOX_SETUP_COMMANDS.map(setupHook)],
+    onSandboxReady: [
+      ...gitHttpsHooks,
+      ...codexAuthHooks,
+      ...SANDBOX_SETUP_COMMANDS.map(setupHook),
+    ],
   },
 };
 

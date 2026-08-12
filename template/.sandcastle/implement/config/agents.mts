@@ -34,7 +34,7 @@ export const PLAN_WAVE_AGENT = CLAUDE_MED;
 // --- runTicket --------------------------------------------------------------
 
 export const RUN_TICKET_MAKER_AGENT = GPT_MED;
-export const RUN_TICKET_CHECKER_AGENT = CLAUDE_HIGH;
+export const RUN_TICKET_CHECKER_AGENT = CLAUDE_MED;
 
 // --- foldWave ---------------------------------------------------------------
 

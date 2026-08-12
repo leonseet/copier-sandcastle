@@ -34,6 +34,15 @@ function addBranch(root: string, number: number, file = `issue-${number}.txt`) {
   git(root, "checkout", tip.branch);
 }
 
+/** Moves the tip past the branches' base, so folding them requires a real
+ *  rebase and therefore a verification run. */
+function advanceTip(root: string, file = "tip.txt") {
+  git(root, "checkout", tip.branch);
+  writeFileSync(join(root, file), "tip moved\n");
+  git(root, "add", ".");
+  git(root, "commit", "-m", "tip moved");
+}
+
 function boundary(root: string, events: string[]): FoldBoundary {
   return {
     worktree: root,
@@ -63,11 +72,11 @@ test("folds sequentially in planner order without an agent on the mechanical pat
   addBranch(root, 1);
   const events: string[] = [];
   await foldWave([2, 1], tip, boundary(root, events));
+  // The first fold fast-forwards the checker-verified tree, so only the
+  // second (rebased) fold re-runs the gate.
   assert.deepEqual(events, [
     "log:feat/issue-2:Folding feat/issue-2",
-    "output:feat/issue-2:tests passed",
-    "verify",
-    "log:feat/issue-2:Verified: tests passed",
+    "log:feat/issue-2:Verified: skipped: feat/issue-2 fast-forwarded without rebase; the ticket gate already passed on this exact tree",
     "log:feat/issue-1:Folding feat/issue-1",
     "output:feat/issue-1:tests passed",
     "verify",
@@ -122,6 +131,7 @@ test("a failed branch rolls back its artifacts and later branches still fold", a
   const root = repo();
   addBranch(root, 1);
   addBranch(root, 2);
+  advanceTip(root);
   const events: string[] = [];
   const api = boundary(root, events);
   let checks = 0;
@@ -161,6 +171,7 @@ test("tracker-reporting failures neither undo proven folds nor stop later branch
   const root = repo();
   addBranch(root, 1);
   addBranch(root, 2);
+  advanceTip(root);
   const api = boundary(root, []);
   let checks = 0;
   api.verifyChecks = async () => {
@@ -176,6 +187,20 @@ test("tracker-reporting failures neither undo proven folds nor stop later branch
   });
 });
 
+test("a rebased fold re-runs the gate even when the first fold skipped it", async () => {
+  const root = repo();
+  addBranch(root, 7);
+  advanceTip(root);
+  const events: string[] = [];
+  await foldWave([7], tip, boundary(root, events));
+  assert.deepEqual(events, [
+    "log:feat/issue-7:Folding feat/issue-7",
+    "output:feat/issue-7:tests passed",
+    "verify",
+    "log:feat/issue-7:Verified: tests passed",
+  ]);
+});
+
 test("in-sandbox verification rejects a nonzero command result", async () => {
   const commands: string[] = [];
   const lines: string[] = [];
@@ -188,7 +213,7 @@ test("in-sandbox verification rejects a nonzero command result", async () => {
           return { stdout: "", stderr: "boom", exitCode: 7 };
         },
       },
-      [["pnpm", "test"]],
+      "pnpm test",
       (line) => lines.push(line),
     ),
     /pnpm test.*exit 7.*boom/i,
@@ -209,7 +234,7 @@ test("failure detail keeps stdout when stderr carries only noise", async () => {
           exitCode: 2,
         }),
       },
-      [["make", "test"]],
+      "make test",
     ),
     (error: Error) =>
       error.message.includes(
@@ -229,7 +254,7 @@ test("failure detail keeps the diagnostic tail of long output", async () => {
           exitCode: 1,
         }),
       },
-      [["make", "test"]],
+      "make test",
     ),
     (error: Error) =>
       error.message.includes("2 failed, 300 passed") &&

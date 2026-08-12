@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
   BASE_BRANCH,
   COPY_TO_WORKTREE,
-  FOLD_WAVE_VERIFY_CHECKS,
+  VERIFY_SLOW_COMMAND,
   IN_REVIEW_LABEL,
   LIFECYCLE_MAX_WAVES,
   SANDBOX_NETWORK,
@@ -26,10 +26,7 @@ import {
   planNextWave,
 } from "./stages/planWave.mts";
 import type { WavePlan } from "./stages/planWave.mts";
-import {
-  runPlannedTickets,
-  type CompletedBranch,
-} from "./stages/runTicket.mts";
+import { runPlannedTickets } from "./stages/runTicket.mts";
 
 export type RunTip = {
   readonly branch: RunTipBranch;
@@ -198,9 +195,9 @@ export function assertKnobsUsable(
       `COPY_TO_WORKTREE names files that do not exist: ${missing.join(", ")} — fix .sandcastle/implement/config/knobs.mts`,
     );
   }
-  if (FOLD_WAVE_VERIFY_CHECKS.length === 0) {
+  if (!VERIFY_SLOW_COMMAND.trim()) {
     warn(
-      "no verify checks configured: folds land unverified — set FOLD_WAVE_VERIFY_CHECKS in .sandcastle/implement/config/knobs.mts",
+      "no verify command configured: folds land unverified — set VERIFY_SLOW_COMMAND in .sandcastle/implement/config/knobs.mts",
     );
   }
 }
@@ -237,14 +234,17 @@ export async function runLoop(): Promise<void> {
       steps: {
         planWave: (runTip) => planNextWave(runTip, context),
         runWave: async (plan, runTip) => {
-          const completed = await runPlannedTickets(plan, runTip, context);
-          await foldCompletedBranches(
-            completed.filter(
-              (branch): branch is CompletedBranch => branch !== null,
-            ),
-            runTip,
-            context,
-          );
+          let folds: Promise<void> = Promise.resolve();
+          let foldError: unknown;
+          await runPlannedTickets(plan, runTip, context, (branch) => {
+            folds = folds
+              .then(() => foldCompletedBranches([branch], runTip, context))
+              .catch((error: unknown) => {
+                foldError ??= error;
+              });
+          });
+          await folds;
+          if (foldError) throw foldError;
         },
         finalize: (runTip) => runFinalize(runTip, context),
       },

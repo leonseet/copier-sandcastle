@@ -6,11 +6,11 @@
 
 Invoke `/code-review` for issue #{{TASK_ID}} using `{{RUN_TIP}}` as the fixed point and `{{BRANCH}}` as the committed branch. You are read-only on the branch; your writes are to the tracker.
 
-Review to full depth on this pass. Every later pass costs another maker run, so raising one blocker now and a deeper one next round is expensive.
+Review to full depth on this pass. Every later pass costs another maker run, so raising one blocker now and a deeper one next round is expensive. When a blocker rests on a stricter reading of an AC than the maker used, quote the source of that reading (parent issue, ADR, spec) so the next pass needs no interpretation.
 
-The maker ran `{{VERIFY_COMMAND}}` before committing and the fold re-runs it before this branch lands, so do not re-run the full suite. Run targeted commands only to verify a specific claim you doubt.
+The maker ran `{{VERIFY_SLOW}}` before committing and the fold re-runs it before this branch lands, so do not re-run the full suite. Run targeted commands only to verify a specific claim you doubt.
 
-The acceptance-criteria checklist in the issue description is the standing record of what is settled. Tick every criterion this branch now meets by flipping `- [ ]` to `- [x]` and change nothing else.
+The acceptance-criteria checklist in the issue description is the standing record of what is settled. Tick every criterion this branch now meets by flipping `- [ ]` to `- [x]` and change nothing else. Criteria already ticked on an earlier pass stay settled unless the amended diff touches them — re-verify those from the evidence recorded on the thread rather than demanding expensive re-execution.
 
 Post exactly one verdict comment:
 

@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 
+import * as sandcastle from "@ai-hero/sandcastle";
 import { z } from "zod";
 
 import { createExplainerHost } from "../../helpers/explainerHost.mts";
+import { codingSandbox } from "../../helpers/sandboxes.mts";
+import { removeBranchWorkspace } from "./planWave.mts";
 import {
   EXPLAINER_AGENT,
   MERGE_TICKET_AGENT,
@@ -12,9 +15,10 @@ import {
   SIMPLIFY_AGENT,
 } from "../config/agents.mts";
 import {
+  COPY_TO_WORKTREE,
   EXPLAINER_DIRECTORY,
   EXPLAINER_MAX_ITERATIONS,
-  VERIFY_COMMAND,
+  VERIFY_SLOW_COMMAND,
 } from "../config/knobs.mts";
 import type { ImplementContext } from "../context.mts";
 import type { RunTip } from "../index.mts";
@@ -89,25 +93,31 @@ export async function finalize(
   const mergeTicket = await boundary.ensureMergeTicket(tip);
   const failures: FinalizeFailure[] = [];
 
-  await degrade(failures, "simplify", () => boundary.simplify(mergeTicket));
-  if (!(await boundary.tipIsClean())) {
-    throw new Error(
-      `${tip.branch} has uncommitted changes after simplify; the tip is unsafe to explain or publish`,
-    );
-  }
-
-  const path = explainerPath(tip);
-  const explained = await degrade(failures, "explainer", () =>
-    boundary.explain(path),
-  );
+  const qaFailures: FinalizeFailure[] = [];
+  const qaDone = degrade(qaFailures, "qa", () => boundary.qa(mergeTicket));
   let explainerUrl: string | undefined;
-  if (explained) {
-    await degrade(failures, "upload", async () => {
-      explainerUrl = await boundary.upload(path);
-    });
-  }
 
-  await degrade(failures, "qa", () => boundary.qa(mergeTicket));
+  try {
+    await degrade(failures, "simplify", () => boundary.simplify(mergeTicket));
+    if (!(await boundary.tipIsClean())) {
+      throw new Error(
+        `${tip.branch} has uncommitted changes after simplify; the tip is unsafe to explain or publish`,
+      );
+    }
+
+    const path = explainerPath(tip);
+    const explained = await degrade(failures, "explainer", () =>
+      boundary.explain(path),
+    );
+    if (explained) {
+      await degrade(failures, "upload", async () => {
+        explainerUrl = await boundary.upload(path);
+      });
+    }
+  } finally {
+    await qaDone;
+    failures.push(...qaFailures);
+  }
 
   await boundary.publish({
     tip,
@@ -161,7 +171,7 @@ export async function runFinalize(
           BASE_BRANCH: tip.base,
           RUN_TIP: tip.branch,
           MERGE_TICKET: mergeTicket,
-          VERIFY_COMMAND,
+          VERIFY_SLOW: VERIFY_SLOW_COMMAND,
         },
       });
     },
@@ -199,7 +209,14 @@ export async function runFinalize(
       return url;
     },
     qa: async (mergeTicket) => {
-      const sandbox = await context.tipSandbox(tip);
+      // QA gets its own throwaway workspace so it can run concurrently
+      const branch = `qa/${tip.branch.slice("merge/".length)}`;
+      removeBranchWorkspace(context.root, branch);
+      const worktree = await sandcastle.createWorktree({
+        branchStrategy: { type: "branch", branch, baseBranch: tip.branch },
+        copyToWorktree: COPY_TO_WORKTREE,
+      });
+      const sandbox = await worktree.createSandbox({ ...codingSandbox });
       try {
         await context.sandboxAgent(sandbox, {
           name: "qa",
@@ -214,8 +231,8 @@ export async function runFinalize(
           },
         });
       } finally {
-        context.git(sandbox.worktreePath, "reset", "--hard");
-        context.git(sandbox.worktreePath, "clean", "-fd");
+        await sandbox.close().catch(() => undefined);
+        removeBranchWorkspace(context.root, branch);
       }
     },
     publish: async (input) => {

@@ -1,5 +1,5 @@
 import { FOLD_WAVE_RESOLVE_CONFLICT_AGENT } from "../config/agents.mts";
-import { FOLD_WAVE_VERIFY_CHECKS } from "../config/knobs.mts";
+import { VERIFY_SLOW_COMMAND } from "../config/knobs.mts";
 import {
   git,
   gitResult,
@@ -39,23 +39,19 @@ function failureDetail(stdout: string, stderr: string): string {
 
 export async function runStrictChecks(
   sandbox: SandboxExecutor,
-  checks: readonly (readonly string[])[],
+  command: string,
   onLine: (line: string) => void = () => undefined,
 ): Promise<string> {
-  const commands: string[] = [];
-  for (const check of checks) {
-    const command = check.join(" ");
-    commands.push(command);
-    onLine(`$ ${command}`);
-    const result = await sandbox.exec(`${command} 2>&1`, { onLine });
-    if (result.exitCode !== 0) {
-      const detail = failureDetail(result.stdout, result.stderr);
-      throw new Error(
-        `${command} failed with exit ${result.exitCode}${detail ? `: ${detail}` : ""}`,
-      );
-    }
+  if (!command.trim()) return "(no verify command configured)";
+  onLine(`$ ${command}`);
+  const result = await sandbox.exec(`${command} 2>&1`, { onLine });
+  if (result.exitCode !== 0) {
+    const detail = failureDetail(result.stdout, result.stderr);
+    throw new Error(
+      `${command} failed with exit ${result.exitCode}${detail ? `: ${detail}` : ""}`,
+    );
   }
-  return commands.join("; ");
+  return command;
 }
 
 export function rollbackBranch(
@@ -103,6 +99,7 @@ export async function foldWave(
   for (const candidate of branches) {
     const branch = issueBranch(candidate);
     const before = git(boundary.worktree, "rev-parse", "HEAD");
+    const branchHead = git(boundary.worktree, "rev-parse", branch);
     let decision: string | undefined;
     let verification: string;
     try {
@@ -144,7 +141,14 @@ export async function foldWave(
           }`,
         );
       }
-      verification = await boundary.verifyChecks(candidate);
+      if (
+        decision === undefined &&
+        git(boundary.worktree, "rev-parse", "HEAD") === branchHead
+      ) {
+        verification = `skipped: ${branch} fast-forwarded without rebase; the ticket gate already passed on this exact tree`;
+      } else {
+        verification = await boundary.verifyChecks(candidate);
+      }
       if (isDirty(boundary.worktree)) {
         throw new Error("fold left a dirty worktree");
       }
@@ -193,7 +197,7 @@ export async function foldCompletedBranches(
   await foldWave(branches, tip, {
     worktree: sandbox.worktreePath,
     verifyChecks: async (candidate) =>
-      runStrictChecks(sandbox, FOLD_WAVE_VERIFY_CHECKS, (line) =>
+      runStrictChecks(sandbox, VERIFY_SLOW_COMMAND, (line) =>
         appendCandidateLog(candidate, line),
       ),
     recordFoldProgress: appendCandidateLog,

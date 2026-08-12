@@ -26,7 +26,9 @@ causes NOT APPROVED. Steps that degraded, one per line, or `none`:
 {{FAILURES}}
 ```
 
-Never close implementation tickets directly.
+Never close implementation tickets directly. Do not run any test suite.
+
+Push `{{RUN_TIP}}` to the remote before touching the change request
 
 Create or update the change request exactly once.
 

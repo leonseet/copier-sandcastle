@@ -11,10 +11,14 @@ pick the 3–8 checks a human reviewer should run to judge whether the changes
 are good, ordered most-load-bearing first. Each check proves one user-visible
 behavior — the heading says what it proves, not what command it runs. Skip
 filler the test suite already proves; refactor-only changes belong under
-`Not covered`, not in the menu.
+`Not covered`, not in the menu. Favor cross-ticket, integration-level behavior:
+a scenario a per-ticket checker already ran and recorded on its thread is
+filler — cite that thread instead of re-executing it.
 
 Verify before you write: run each runnable check in this worktree and paste
-what you actually observed as its expectation. A check you cannot run here
+what you actually observed as its expectation. Author each check in its final
+pasteable form *before* running it, and run it exactly once — capturing output
+on that run. Never re-run a working check just to get cleaner output. A check you cannot run here
 (browser click-throughs, hardware) is allowed but must be marked
 `⚠️ unverified`; for those, replace `Run` with numbered click steps and
 describe the expected screen under `Expect`.

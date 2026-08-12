@@ -52,12 +52,14 @@ test("cleans, explains, uploads, then publishes against one merge ticket", async
   const api = boundary(events);
   await finalize(tip, api);
   assert.equal(explainerPath(tip), EXPLAINER);
+  // qa starts as soon as the ticket exists — it runs concurrently with the
+  // simplify → explain → upload chain, and publish waits for both.
   assert.deepEqual(events, [
     "ticket",
+    "qa",
     "simplify",
     `explain:${EXPLAINER}`,
     `upload:${EXPLAINER}`,
-    "qa",
     "publish",
   ]);
   assert.deepEqual(api.published, {

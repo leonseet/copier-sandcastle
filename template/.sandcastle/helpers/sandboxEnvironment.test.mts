@@ -80,15 +80,16 @@ test("both bundles share one provider; only the coding bundle runs setup command
     ...trackerHooks,
     ...SANDBOX_SETUP_COMMANDS.map(setupHook),
   ]);
+  assert.doesNotMatch(JSON.stringify(trackerSandbox.hooks), /pnpm install/);
   assert.doesNotMatch(
     JSON.stringify(codingSandbox.hooks),
-    /pnpm install|config\.toml|host-codex/,
+    /config\.toml|host-codex/,
   );
 });
 
 test("codex auth travels only when the host is logged in", () => {
   const hostAuth = path.join(os.homedir(), ".codex", "auth.json");
-  const hooks = trackerSandbox.hooks.sandbox?.onSandboxReady ?? [];
+  const hooks = (trackerSandbox.hooks.sandbox?.onSandboxReady ?? []).slice(1);
   if (fs.existsSync(hostAuth)) {
     assert.deepEqual(hooks, [
       {
@@ -99,4 +100,34 @@ test("codex auth travels only when the host is logged in", () => {
   } else {
     assert.deepEqual(hooks, []);
   }
+});
+
+test("git pushes go over HTTPS with the injected token, never SSH", () => {
+  const [gitHook] = trackerSandbox.hooks.sandbox?.onSandboxReady ?? [];
+  assert.ok(gitHook, "the git HTTPS hook must run first in every sandbox");
+  // Each forge is guarded so sandboxes without its environment stay untouched.
+  // GitLab keys on its host; GitHub on its token, because GH_HOST is optional.
+  assert.match(gitHook.command, /if \[ -n "\$GITLAB_HOST" \]; then /);
+  assert.match(gitHook.command, /if \[ -n "\$\{GH_TOKEN:-\$GITHUB_TOKEN\}" \]; then /);
+  // Each forge's SSH remote is rewritten to HTTPS for both fetch and push.
+  assert.match(
+    gitHook.command,
+    /"url\.https:\/\/\$GITLAB_HOST\/\.insteadOf" "git@\$GITLAB_HOST:"/,
+  );
+  assert.match(
+    gitHook.command,
+    /"url\.https:\/\/\$gh_host\/\.insteadOf" "git@\$gh_host:"/,
+  );
+  // Helpers are scoped to their forge's host, so tokens never cross forges,
+  // and stored single-quoted: the token is read from the environment at
+  // credential time, never written into the sandbox's gitconfig.
+  assert.match(
+    gitHook.command,
+    /"credential\.https:\/\/\$GITLAB_HOST\.helper" '[^']*\$GITLAB_TOKEN[^']*'/,
+  );
+  assert.match(
+    gitHook.command,
+    /"credential\.https:\/\/\$gh_host\.helper" '[^']*\$\{GH_TOKEN:-\$GITHUB_TOKEN\}[^']*'/,
+  );
+  assert.doesNotMatch(gitHook.command, /credential\.helper /);
 });
