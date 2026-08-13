@@ -24,8 +24,7 @@ RUN apt-get update && apt-get install -y \
   libglib2.0-0 \
   && rm -rf /var/lib/apt/lists/*
 
-# Issue tracker CLIs
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 ARG GLAB_VERSION=1.108.0
 RUN curl -fsSL \
